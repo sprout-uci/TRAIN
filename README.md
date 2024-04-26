@@ -15,8 +15,7 @@
     │   ├── msp_periph
     │   └── simulation
     ├── scripts
-    │   ├── build
-    │   └── verif-tools
+    │   └── build
     ├── traps
     │   ├── hw-mod
     │   └── sw-att
@@ -35,8 +34,7 @@
     │   ├── msp_periph
     │   └── simulation
     ├── scripts
-    │   ├── build
-    │   └── verif-tools
+    │   └── build
     ├── traps
     │   ├── hw-mod
     │   └── sw-att
