@@ -350,7 +350,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     if (secure_memcmp(hash_res, req_msg.auth_req, SIZE_HASH))
 
     {
-      send_buf(&sendH, sizeof(sendH));
       break;
     }
 
