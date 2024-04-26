@@ -17,7 +17,7 @@
     ├── scripts
     │   ├── build
     │   └── verif-tools
-    ├── vrased
+    ├── traps
     │   ├── hw-mod
     │   └── sw-att
     │       └── hacl-c
@@ -37,7 +37,7 @@
     ├── scripts
     │   ├── build
     │   └── verif-tools
-    ├── vrased
+    ├── traps
     │   ├── hw-mod
     │   └── sw-att
     │       └── hacl-c
