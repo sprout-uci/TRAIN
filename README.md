@@ -5,7 +5,6 @@
     TRAPSCASU
     ├── application
     │   └── simulation
-    ├── ILA_SETUP
     ├── msp_bin
     ├── openmsp430
     │   ├── contraints_fpga
