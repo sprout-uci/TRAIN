@@ -315,7 +315,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     // send_buf(&sendF, sizeof(sendF));
     // send_buf(&auth_req_hash, sizeof(auth_req_hash));
 #else
-    send_buf(&sendF, sizeof(sendF));
     send_buf(&auth_req_hash, sizeof(auth_req_hash));
 #endif
     hash((uint8_t *)hash_res, (uint8_t *)&auth_req_hash, (uint32_t)sizeof(auth_req_hash));
@@ -324,7 +323,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     // send_buf(&sendG, sizeof(sendG));
     // send_buf(&hash_res, SIZE_HASH); // set the value of this to the auth_req on the python
 #else
-    send_buf(&sendG, sizeof(sendG));
     send_buf(&hash_res, SIZE_HASH); // set the value of this to the auth_req on the python
 #endif
 
@@ -334,7 +332,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
 #ifdef MEASUREMENT
       // send_buf(&sendH, sizeof(sendH));
 #else
-      send_buf(&sendH, sizeof(sendH));
 #endif
       break;
     }
@@ -361,7 +358,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
 #ifdef MEASUREMENT
     // send_buf(&sendI, sizeof(sendI));
 #else
-    send_buf(&sendI, sizeof(sendI));
 #endif
 
     memset(key, 0, SIZE_KEY);
@@ -374,7 +370,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     // send_buf(&req_msg, sizeof(req_msg));
 #else
     send_buf(&key, SIZE_KEY);
-    send_buf(&sendI, sizeof(sendI));
     send_buf(&req_msg, sizeof(req_msg));
 #endif
 
@@ -392,7 +387,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     // send_buf(&sendJ, sizeof(sendJ));
     // send_buf(&auth_rep_struct, sizeof(auth_rep_struct));
 #else
-    send_buf(&sendJ, sizeof(sendJ));
     send_buf(&auth_rep_struct, sizeof(auth_rep_struct));
 #endif
 
@@ -402,7 +396,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     // send_buf(&sendJ, sizeof(sendJ));
     // send_buf(&auth_rep, SIZE_HASH);
 #else
-    send_buf(&sendJ, sizeof(sendJ));
     send_buf(&auth_rep, SIZE_HASH);
 #endif
 
@@ -416,7 +409,6 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     memcpy(att_rep.lmt, (uint8_t *)LMT_ADDR, LMT_SIZE);
     memcpy(att_rep.auth_rep, auth_rep, SIZE_HASH); // line 21
 
-    send_buf(&t2, sizeof(t2));
 #ifdef MEASUREMENT
     t2 = TAR;
     t2_overflow = TACTL & TAIFG;
