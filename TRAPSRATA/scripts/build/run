@@ -4,7 +4,7 @@ folder="tmp-build"
 rm -rf $folder
 mkdir -p $folder
 
-cp -rf ../vrased/sw-att/* $folder/
+cp -rf ../traps/sw-att/* $folder/
 cp -rf ../$1/* $folder/
 cp ./build/linker.msp430.x $folder/
 
