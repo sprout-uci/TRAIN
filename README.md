@@ -1,8 +1,8 @@
-# TRAPS: TOCTOU Resilient Attestation Protocol for Swarms of low-end embedded systems
+# TRAIN: TOCTOU Resilient Attestation for IoT Networks
 
-### TRAPS Directory Structure
+### TRAIN Directory Structure
 
-    TRAPSCASU
+    TRAINCASU
     ├── application
     │   └── simulation
     ├── msp_bin
@@ -15,13 +15,13 @@
     │   └── simulation
     ├── scripts
     │   └── build
-    ├── traps
+    ├── train
     │   ├── hw-mod
     │   └── sw-att
     │       └── hacl-c
     └── utils
 
-    TRAPSRATA
+    TRAINRATA
     ├── application
     │   └── simulation
     ├── msp_bin
@@ -34,7 +34,7 @@
     │   └── simulation
     ├── scripts
     │   └── build
-    ├── traps
+    ├── train
     │   ├── hw-mod
     │   └── sw-att
     │       └── hacl-c
@@ -55,8 +55,8 @@ Dependencies on Ubuntu:
 		sudo apt-get install bison pkg-config gawk clang flex gcc-msp430 iverilog
 		cd scripts && make install
 
-## Building TRAPS Software
-To generate the Microcontroller program memory configuration containing TRAPS trusted software (SW-Att) and sample application (in application/main.c) code run:
+## Building TRAIN Software
+To generate the Microcontroller program memory configuration containing TRAIN trusted software (SW-Att) and sample application (in application/main.c) code run:
 
         cd scripts
         make mem
@@ -73,19 +73,19 @@ As a result of the build, two files pmem.mem and smem.mem should be created insi
 
         Note: Latest Build tested using msp430-gcc (GCC) 4.6.3 2012-03-01 (mspgcc LTS 20120406 unpatched)
 
-## Running TRAPS Prototype on FPGA
+## Running TRAIN Prototype on FPGA
 
-This is an example of how to Synthesize and prototype TRAPS using Basys3 FPGA and XILINX Vivado v2023.1 (64-bit) for Linux
+This is an example of how to Synthesize and prototype TRAIN using Basys3 FPGA and XILINX Vivado v2023.1 (64-bit) for Linux
 
 - Vivado is available to download at: https://www.xilinx.com/support/download.html
 
 - Basys3 Reference/Documentation is available at: https://reference.digilentinc.com/basys3/refmanual
 
-#### Creating a Vivado Project for TRAPS
+#### Creating a Vivado Project for TRAIN
 
 1- Clone this repository;
 
-2 - Follow the steps in "Building TRAPS Software" (above) to generate .mem files
+2 - Follow the steps in "Building TRAIN Software" (above) to generate .mem files
 
 2- Start Vivado. On the upper left select: File -> New Project
 
@@ -108,13 +108,13 @@ and select Next.
 
 and select Next.
 
-        Note: this file needs to be modified accordingly if you are running TRAPS in a different FPGA.
+        Note: this file needs to be modified accordingly if you are running TRAIN in a different FPGA.
 
 6- In the "Default Part" window select "Boards", search for Basys3, select it, and click Next.
 
         Note: if you don't see Basys3 as an option you may need to download Basys3 to Vivado.
 
-7- Select "Finish". This will conclude the creation of a Vivado Project for TRAPS.
+7- Select "Finish". This will conclude the creation of a Vivado Project for TRAIN.
 
 Now we need to configure the project for systhesis.
 
@@ -123,13 +123,13 @@ This will make openMSP430_fpga.v the top module in the project hierarchy. Now it
 
 9- In the same "Sources" window, search for openMSP430_defines.v file, right click it and select Set File Type and, from the dropdown menu select "Verilog Header".
 
-Now we are ready to synthesize openmsp430 with TRAPS's hardware the following steps might take several minutes.
+Now we are ready to synthesize openmsp430 with TRAIN's hardware the following steps might take several minutes.
 
 10- On the left menu of the PROJECT MANAGER click "Run Synthesis", select execution parameters (e.g, number of CPUs used for synthesis) according to your PC's capabilities.
 
 11- If synthesis succeeds, you will be prompted with the next step. Select "Run Implementation" and wait a few more minutes (tipically ~3-10 minutes).
 
-12- If implementation succeeds select "Generate Bitstream" in the following window. This will generate the configuration binary to step up the FPGA according to TRAPS hardware and software.
+12- If implementation succeeds select "Generate Bitstream" in the following window. This will generate the configuration binary to step up the FPGA according to TRAIN hardware and software.
 
 13- After the bitstream is generated, select "Open Hardware Manager", connect the FPGA to you computers USB port and click "Auto-Connect".
 Your FPGA should be now displayed on the hardware manager menu.
