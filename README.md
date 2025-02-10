@@ -15,6 +15,7 @@
     │   └── simulation
     ├── scripts
     │   └── build
+    ├── verification_specs
     ├── train
     │   ├── hw-mod
     │   └── sw-att
@@ -137,3 +138,37 @@ Your FPGA should be now displayed on the hardware manager menu.
         Note: if you don't see your FPGA after auto-connect you might need to download Basys3 drivers to your computer.
 
 14- Right-click your FPGA and select "Program Device" to program the FPGA.
+
+## 15. Device Configuration
+Navigate to `TRAINCASU/utils` and configure `vrf_train.py`:
+
+```python
+ports = ['/dev/ttyUSB3', '/dev/ttyUSB2']  # Adjust to match your USB ports
+devs = ['rata', 'rata']  # Set to 'casu' or 'rata' per device type
+```
+
+## 16. Device Programming
+* Open Vivado Hardware Manager
+* Ensure all FPGA boards are connected and recognized
+* Program each board with its respective bitstream
+
+## 17. Run Verification
+From the `TRAINCASU/utils` directory:
+```bash
+python vrf_train.py
+```
+
+## 18. Expected Results
+* CASU-configured boards: **PASS** attestation
+* RATA-configured boards: **FAIL** attestation
+
+## 19. Troubleshooting Guide
+* **Device Detection Issues**
+  * Verify USB port assignments in `vrf_train.py`
+  * Check physical USB connections
+  * Ensure correct device types are specified in `devs` list
+
+* **Verification Failures**
+  * Confirm device configuration matches `devs` list settings
+  * Try reprogramming the boards
+  * Check USB connection stability
