@@ -23,9 +23,18 @@ int main()
   setup();
   uint8_t response[32];
   uint8_t challenge[32];
+
+
+  //pmem modification to show fail
+  uint32_t hack;
+  hack = 12;
+  uintptr_t malicious = (uintptr_t)0xE768;
+  uint32_t *hackptr = (uint32_t *)malicious;
+  *hackptr = hack;
   my_memset(challenge, 32, 0x11);
   
-  //Sample application: Blinking P3, easier for end user to generate interrupts
+  // Call VRASED with challenge and auth_chal.
+  //VRASED(challenge, auth_chal, response);
   int i = 0;
   while(1)
   {

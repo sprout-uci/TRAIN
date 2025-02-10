@@ -4,7 +4,7 @@
 `include "dma_AC.v"	
 `include "dma_detect.v"	
 `include "dma_X_stack.v"
-`include "rata_b.v"
+`include "rata_a.v"
 `include "garota.v"
 
 
@@ -168,7 +168,7 @@ dma_X_stack #(
 
 wire rata_reset;
 wire rata_upLMT;
-rata 
+rata_a 
 #(
     .AR_BASE  (AR_BASE),
     .AR_SIZE  (AR_SIZE),
@@ -206,7 +206,7 @@ garota #(
     .dma_addr   (dma_addr),
     .dma_en     (dma_en),
 	.irq        (irq),
-	.gie        (gie),
+	.gie        (gie),	//for disabling interrupts
 
     
     .reset      (garota_reset)

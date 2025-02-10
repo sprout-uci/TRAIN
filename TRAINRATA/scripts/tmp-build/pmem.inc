@@ -40,7 +40,7 @@
 
 
 
-`define ILA_REG
+
 `define OMSP_NO_INCLUDE
 `ifdef OMSP_NO_INCLUDE
 `else

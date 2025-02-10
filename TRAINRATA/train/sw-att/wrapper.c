@@ -72,6 +72,15 @@ struct __attribute__((__packed__)) req_msg
   uint32_t cur_time;
 };
 
+struct __attribute__((__packed__)) att_req_msg
+{
+  uint8_t msg_type;
+  uint32_t snd_id;
+  uint32_t hash_idx;
+  uint8_t hash[SIZE_HASH];
+  uint32_t cur_time;
+};
+
 struct __attribute__((__packed__)) req_msg_lmt
 {
   uint8_t msg_type;
@@ -119,9 +128,10 @@ struct __attribute__((__packed__)) auth_ref_hash
 
 struct __attribute__((__packed__)) auth_rep
 {
-  uint8_t msg_type;
   uint32_t dev_id;
-  uint32_t cur_seq;
+  uint32_t cur_time;
+  uint8_t new_hash[SIZE_HASH];
+  uint8_t lmt[LMT_SIZE];
 };
 
 struct __attribute__((__packed__)) att_rep
@@ -129,9 +139,10 @@ struct __attribute__((__packed__)) att_rep
   uint8_t msg_type;
   uint32_t dev_id;
   uint32_t par;
-  uint32_t seq;
-  uint8_t auth_rep[SIZE_HASH];
+  uint32_t attesttime;
+  uint8_t new_hash[SIZE_HASH];
   uint8_t lmt[LMT_SIZE];
+  uint8_t auth_rep[SIZE_HASH];
 };
 
 #define RING_BUF_SIZE (256)
@@ -155,6 +166,81 @@ void my_memset(uint8_t* ptr, int len, uint8_t val)
   for(i=0; i<len; i++) ptr[i] = val;
 }
 
+#pragma vector = TIMERA0_VECTOR
+__interrupt __attribute__((section(".do_mac.body"))) void timer(void)
+{
+   __asm__ volatile("dint"
+                   "\n\t");
+  struct auth_rep retrieved_struct;
+  struct auth_rep *ptr = (struct auth_rep *)(uintptr_t)0x5800;
+  retrieved_struct = *ptr;
+
+  uint32_t tim;
+  uint32_t *timptr = (uint32_t)(uintptr_t)0x5768;
+  uint32_t wait = retrieved_struct.cur_time * 6;
+  tim = *timptr;
+  if (tim > wait)
+  {
+    //    send_buf(&retrieved_struct,  sizeof(retrieved_struct));
+    uint8_t key[SIZE_KEY] = {0};
+    uint8_t auth_rep[SIZE_SIGNATURE] = {0};
+    memset(key, 0, SIZE_KEY);
+    memcpy(key, (uint8_t *)KEY_ADDR, SIZE_KEY); // K
+    hmac((uint8_t *)auth_rep, (uint8_t *)key, (uint32_t)SIZE_KEY, (uint8_t *)&retrieved_struct, (uint32_t)(sizeof(retrieved_struct)));
+
+    // send_buf(&auth_rep, SIZE_HASH);
+
+    struct att_rep att_rep;
+
+    att_rep.msg_type = MSG_TYPE_REP;
+    att_rep.dev_id = dev_id;
+    att_rep.par = parent;
+    att_rep.attesttime = retrieved_struct.cur_time;               
+    memcpy(att_rep.new_hash, retrieved_struct.new_hash, SIZE_HASH); 
+    memcpy(att_rep.lmt, retrieved_struct.lmt, SIZE_HASH); 
+    memcpy(att_rep.auth_rep, auth_rep, SIZE_HASH);                 
+
+    send_buf(&att_rep, sizeof(att_rep));
+
+    CCTL0 &= ~CCIE;
+    UART_CTL = UART_EN | UART_IEN_RX;
+    epoch_time++;
+    tim = 0;
+  }
+  else
+  {
+    tim++;
+    uintptr_t timer_address = (uintptr_t)0x5768;
+    uint32_t *timerptr = (uint32_t *)timer_address;
+    *timerptr = tim;
+  }
+    __asm__ volatile("eint"
+                   "\n\t");
+  __asm__ volatile("add	#246,	r1	;#0x00f6"
+                   "\n\t");
+  __asm__ volatile("pop r4"
+                   "\n\t");
+  __asm__ volatile("pop r10"
+                   "\n\t");
+  __asm__ volatile("pop r11"
+                   "\n\t");
+  __asm__ volatile("pop r12"
+                   "\n\t");
+  __asm__ volatile("pop r13"
+                   "\n\t");
+  __asm__ volatile("pop r14"
+                   "\n\t");
+  __asm__ volatile("pop r15"
+                   "\n\t");
+  __asm__ volatile("pop r2"
+                   "\n\t");
+  __asm__ volatile("pop r5"
+                   "\n\t");
+  __asm__ volatile("br #__mac_leave"
+                   "\n\t");
+}
+
+
 __attribute__((section(".do_mac.lib"))) inline void my_memcpy(uint8_t* dst, uint8_t* src, int size) 
 {
   int i=0;
@@ -167,10 +253,16 @@ int secure_memcmp(const uint8_t* s1, const uint8_t* s2, int size);
 #pragma vector = UART_RX_VECTOR
 __interrupt __attribute__((section(".do_mac.body"))) void uart(void)
 {
+   dint();
   uint8_t sendByte = ACK;
   send_buf(&sendByte, sizeof(sendByte));
 
   read_byte();
+  P3OUT = ~P3OUT;
+  TACCTL0 &= ~CCIFG;
+
+  eint();
+  //UART_STAT = UART_RX_PND;
    __asm__ volatile("incd	r1"
                    "\n\t");
   __asm__ volatile("pop r12"
@@ -181,10 +273,13 @@ __interrupt __attribute__((section(".do_mac.body"))) void uart(void)
                    "\n\t");
   __asm__ volatile("pop r15"
                    "\n\t");
-  __asm__ volatile("pop r2"
+  __asm__ volatile("pop r4" "\n\t");
+  __asm__ volatile("pop r6" "\n\t");
+  __asm__ volatile("mov r4, r2" "\n\t");
+  /*__asm__ volatile("pop r2"
                    "\n\t");
   __asm__ volatile("pop r6"
-                   "\n\t");
+                   "\n\t");*/
   __asm__ volatile( "br      #__mac_leave" "\n\t");
 
 
@@ -193,28 +288,9 @@ __interrupt __attribute__((section(".do_mac.body"))) void uart(void)
 __attribute__((section(".do_mac.lib"))) void read_byte()
 {
   struct req_msg req_msg;
+  struct att_req_msg att_req_msg;
   uint8_t rxbyte = 0;
   uint8_t key[SIZE_KEY] = {0};
-
-#ifdef MEASUREMENT
-  uint16_t t1;
-  uint8_t t1_overflow;
-  uint16_t t2;
-  uint8_t t2_overflow;
-
-  uint8_t sendz = 'z';
-  uint8_t sendm = 'm';
-
-
-  TACTL = TACLR;
-  for (int i=0; i<1000; i++);
-  TACTL = TASSEL_2 + MC_1 + ID_3;
-  TACCR0 = 0xFFFF;
-  TAR = 0x00;
-
-  send_buf(&TAR, 2);
-#endif
-
   while (rxbyte != END_BYTE)
   {
     recv_buf(&rxbyte, sizeof(rxbyte));
@@ -231,36 +307,33 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     }
     send_buf(&rxbyte, sizeof(rxbyte));
   }
+  //send_buf(&rx_start, sizeof(rx_start));
+  //send_buf(&rx_end, sizeof(rx_end));
+  //send_buf(&rxdata[0], sizeof(rx_start));
+ // send_buf(&rxdata[rx_start], sizeof(rx_start));
+  //send_buf(&rxdata[0], RING_BUF_SIZE);
   uint8_t sendByte = ACK;
 
   
   switch (rxdata[rx_start])
   {
-  case MSG_TYPE_REQ:
+  //send_buf(&rxdata[rx_start], sizeof(rx_start));
+ // send_buf(&rxdata[0], sizeof(rx_start));
 
-#ifdef MEASUREMENT
-    TACTL = TACLR;
-    for (int i=0; i<1000; i++);
-    TACTL = TASSEL_2 + MC_1 + ID_3;
-    TACCR0 = 0xFFFF;
-    TAR = 0x00;
-#endif
-
+ // send_buf(&sendByte, sizeof(sendByte));
+  case MSG_TYPE_REQ: // line 3
+   // send_buf(&sendByte, sizeof(sendByte));
+   // send_buf(&rxbyte, sizeof(rxbyte));
     if (rx_start > rx_end)
     {
-      my_memcpy((uint8_t *)&req_msg, &rxdata[rx_start], RING_BUF_SIZE - rx_start); // line 4
-      my_memcpy(((uint8_t *)&req_msg + RING_BUF_SIZE - rx_start), &rxdata[0], rx_end + 1);
+      my_memcpy((uint8_t *)&att_req_msg, &rxdata[rx_start], RING_BUF_SIZE - rx_start); // line 4
+      my_memcpy(((uint8_t *)&att_req_msg + RING_BUF_SIZE - rx_start), &rxdata[0], rx_end + 1);
     }
     else
     {
-      my_memcpy((uint8_t *)&req_msg, &rxdata[rx_start], rx_end - rx_start + 1);
+      my_memcpy((uint8_t *)&att_req_msg, &rxdata[rx_start], rx_end - rx_start + 1);
     }
-#ifdef MEASUREMENT
-    // send_buf((uint8_t *)&req_msg, sizeof(req_msg));
-#else
-    send_buf((uint8_t *)&req_msg, sizeof(req_msg));
-#endif
-
+   // send_buf((uint8_t *)&att_req_msg, sizeof(att_req_msg));
     memset(rxdata, 0, sizeof(rxdata));
     rx_start = 0;
     rx_end = 0;
@@ -276,102 +349,89 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
   uint32_t cur_time; 0009     \x09\x00\x00\x00
   };*/
 
-#ifdef MEASUREMENT
+    uint8_t sendF = ACKTWO;
+    uint8_t sendB = 'b';
+    uint8_t sendG = 'g';
+    uint8_t sendH = 'h';
+    uint8_t sendI = 'i';
+    uint8_t sendJ = 'j';
 
-#else
+   /* send_buf(&sendF, sizeof(sendF));
+    send_buf((uint8_t *)&att_req_msg.msg_type, sizeof(uint8_t));
+    send_buf(&sendF, sizeof(sendF));
+    send_buf((uint8_t *)&att_req_msg.snd_id, sizeof(uint32_t));
+    send_buf(&sendF, sizeof(sendF));
+    send_buf((uint8_t *)&att_req_msg.auth_req, SIZE_HASH);
+    send_buf(&sendF, sizeof(sendF));
+    send_buf((uint8_t *)&att_req_msg.seq, sizeof(uint32_t));
+    send_buf(&sendF, sizeof(sendF));
+    send_buf((uint8_t *)&att_req_msg.hash_idx, sizeof(uint32_t));
+    send_buf(&sendF, sizeof(sendF));
+    send_buf((uint8_t *)&att_req_msg.hash, SIZE_HASH);
+    send_buf(&sendF, sizeof(sendF));
+    send_buf((uint8_t *)&att_req_msg.cur_time, sizeof(uint32_t));
+    send_buf(&sendF, sizeof(sendF));*/
 
-#endif
-
+    // this is all fine up to here
 
     uint8_t hash_res[SIZE_HASH] = {0};
-    if (cur_seq >= req_msg.seq)
-    {
-      break;
-    }
-    if (cur_hash_idx > req_msg.hash_idx)
+
+    if (cur_hash_idx > att_req_msg.hash_idx) // line 8
     {
       uint8_t input_hash[SIZE_HASH];
-      memcpy(input_hash, req_msg.hash, SIZE_HASH);
-      for (int i = 0; i < cur_hash_idx - req_msg.hash_idx; i++)
+      memcpy(input_hash, att_req_msg.hash, SIZE_HASH);
+      for (int i = 0; i < cur_hash_idx - att_req_msg.hash_idx; i++)
       {
         hash((uint8_t *)hash_res, (uint8_t *)input_hash, (uint32_t)SIZE_HASH);
         memcpy(input_hash, hash_res, SIZE_HASH);
       }
       if (secure_memcmp(hash_res, cur_hash, SIZE_HASH) != 0)
       {
-        break;
+        return;
       }
+    }
+    else
+    {
+      return;
     }
     memset(hash_res, 0, sizeof(hash_res));
 
-    struct auth_req_hash auth_req_hash;
-    auth_req_hash.msg_type = req_msg.msg_type;
-    memcpy(auth_req_hash.hash, req_msg.hash, SIZE_HASH);
-    auth_req_hash.seq = req_msg.seq;
-    auth_req_hash.hash_idx = req_msg.hash_idx;
-    auth_req_hash.cur_time = req_msg.cur_time;
+    parent = att_req_msg.snd_id;
+    cur_hash_idx = att_req_msg.hash_idx;
+    memcpy(cur_hash, att_req_msg.hash, SIZE_HASH);
+    att_req_msg.snd_id = dev_id;
+    att_req_msg.msg_type = MSG_TYPE_REP;
 
-#ifdef MEASUREMENT
-    // send_buf(&sendF, sizeof(sendF));
-    // send_buf(&auth_req_hash, sizeof(auth_req_hash));
-#else
-    send_buf(&auth_req_hash, sizeof(auth_req_hash));
-#endif
-    hash((uint8_t *)hash_res, (uint8_t *)&auth_req_hash, (uint32_t)sizeof(auth_req_hash));
+    struct auth_rep auth_rep_struct;
+    auth_rep_struct.dev_id = parent;
+    auth_rep_struct.cur_time = att_req_msg.cur_time;
+    memcpy(auth_rep_struct.new_hash, att_req_msg.hash, SIZE_HASH);
+    memcpy(auth_rep_struct.lmt, (uint8_t *)LMT_ADDR, LMT_SIZE);
 
-#ifdef MEASUREMENT
-    // send_buf(&sendG, sizeof(sendG));
-    // send_buf(&hash_res, SIZE_HASH); // set the value of this to the auth_req on the python
-#else
-    send_buf(&hash_res, SIZE_HASH); // set the value of this to the auth_req on the python
-#endif
+    uintptr_t memory_address = (uintptr_t)0x5800;
+    struct auth_rep *ptr = (struct auth_rep *)memory_address;
+    *ptr = auth_rep_struct;
 
-    if (secure_memcmp(hash_res, req_msg.auth_req, SIZE_HASH))
+     //enable timer interrupt
+    TACTL = TASSEL_2 + ID_3 + MC_1;
+    TACCR0 = TRAPS_TIME;
+    uint32_t timr = 0;
+    uintptr_t timer_address = (uintptr_t)0x5768;
+    uint32_t *timerptr = (uint32_t *)timer_address;
+    *timerptr = timr;
 
-    {
-#ifdef MEASUREMENT
-      // send_buf(&sendH, sizeof(sendH));
-#else
-#endif
-      break;
-    }
+    CCTL0 = CCIE; 
+    UART_CTL &= ~UART_IEN_RX;
 
-#ifdef MEASUREMENT
-    t1 = TAR;
-    t1_overflow = TACTL & TAIFG;
-
-    TACTL = TACLR;
-    for (int i=0; i<1000; i++);
-    TACTL = TASSEL_2 + MC_1 + ID_3;
-    TACCR0 = 0xFFFF;
-    TAR = 0x00;
-#endif
-
-    cur_seq = req_msg.seq; // line 14
-    parent = req_msg.snd_id;
-    cur_hash_idx = req_msg.hash_idx;
-    memcpy(cur_hash, req_msg.hash, SIZE_HASH);
-    req_msg.snd_id = dev_id;
-    req_msg.msg_type = MSG_TYPE_REP;
-
-
-#ifdef MEASUREMENT
-    // send_buf(&sendI, sizeof(sendI));
-#else
-#endif
+    /*send_buf(&sendI, sizeof(sendI));
 
     memset(key, 0, SIZE_KEY);
     memcpy(key, (uint8_t *)KEY_ADDR, SIZE_KEY); // K
     uint8_t auth_rep[SIZE_SIGNATURE] = {0};
 
-#ifdef MEASUREMENT
-    // send_buf(&key, SIZE_KEY);
-    // send_buf(&sendI, sizeof(sendI));
-    // send_buf(&req_msg, sizeof(req_msg));
-#else
     send_buf(&key, SIZE_KEY);
+    send_buf(&sendI, sizeof(sendI));
     send_buf(&req_msg, sizeof(req_msg));
-#endif
 
     struct req_msg_lmt auth_rep_struct;
     auth_rep_struct.msg_type = req_msg.msg_type;
@@ -383,21 +443,13 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     auth_rep_struct.cur_time = req_msg.cur_time;
     memcpy(auth_rep_struct.lmt, (uint8_t *)LMT_ADDR, LMT_SIZE);   //00000000000000000000000000000000 because nothing changed
 
-#ifdef MEASUREMENT
-    // send_buf(&sendJ, sizeof(sendJ));
-    // send_buf(&auth_rep_struct, sizeof(auth_rep_struct));
-#else
+    send_buf(&sendJ, sizeof(sendJ));
     send_buf(&auth_rep_struct, sizeof(auth_rep_struct));
-#endif
 
     hmac((uint8_t *)auth_rep, (uint8_t *)key, (uint32_t)SIZE_KEY, (uint8_t *)&auth_rep_struct, (uint32_t)(sizeof(auth_rep_struct)));
 
-#ifdef MEASUREMENT
-    // send_buf(&sendJ, sizeof(sendJ));
-    // send_buf(&auth_rep, SIZE_HASH);
-#else
+    send_buf(&sendJ, sizeof(sendJ));
     send_buf(&auth_rep, SIZE_HASH);
-#endif
 
 
     // create att_rep
@@ -408,115 +460,9 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     att_rep.seq = cur_seq;
     memcpy(att_rep.lmt, (uint8_t *)LMT_ADDR, LMT_SIZE);
     memcpy(att_rep.auth_rep, auth_rep, SIZE_HASH); // line 21
-
-#ifdef MEASUREMENT
-    t2 = TAR;
-    t2_overflow = TACTL & TAIFG;
-
-    if (t1_overflow) {
-      for (int z=0; z<4; z++) {send_buf(&sendz, sizeof(sendz));}
-    } else {
-      for (int z=0; z<8; z++) {send_buf(&sendm, sizeof(sendm));}
-    }
-    send_buf(&t1, sizeof(t1));
-
-    if (t2_overflow) {
-      for (int z=0; z<5; z++) {send_buf(&sendz, sizeof(sendz));}
-    } else {
-      for (int z=0; z<9; z++) {send_buf(&sendm, sizeof(sendm));}
-    }
-    send_buf(&t2, sizeof(t2));
-#endif
-
-    send_buf(&att_rep, sizeof(att_rep));           // line 22
+    send_buf(&att_rep, sizeof(att_rep));           // line 22*/
     break;
-
-  case MSG_TYPE_REF:;
-    /* code */
-    struct ref_msg ref_msg;
-    if (rx_start > rx_end)
-    {
-      my_memcpy((uint8_t *)&ref_msg, &rxdata[rx_start], RING_BUF_SIZE - rx_start); // line 4
-      my_memcpy(((uint8_t *)&ref_msg + RING_BUF_SIZE - rx_start), &rxdata[0], rx_end + 1);
-    }
-    else
-    {
-      my_memcpy((uint8_t *)&ref_msg, &rxdata[rx_start], rx_end - rx_start + 1);
-    }
-    send_buf((uint8_t *)&ref_msg, sizeof(ref_msg));
-    memset(rxdata, 0, sizeof(rxdata));
-    rx_start = 0;
-    rx_end = 0;
-    if (cur_seq >= ref_msg.seq)
-    {
-      break;
-    }
-    if (cur_hash_idx > ref_msg.hash_idx)
-    {
-      uint8_t input_hash[SIZE_HASH];
-      memcpy(input_hash, ref_msg.hash, SIZE_HASH);
-      for (int i = 0; i < cur_hash_idx - ref_msg.hash_idx; i++)
-      {
-        hash((uint8_t *)hash_res, (uint8_t *)input_hash, (uint32_t)SIZE_HASH);
-        memcpy(input_hash, hash_res, SIZE_HASH);
-      }
-      if (secure_memcmp(hash_res, cur_hash, SIZE_HASH) != 0)
-      {
-        break;
-      }
-    }
-    memset(hash_res, 0, sizeof(hash_res));
-    struct auth_ref_hash auth_ref_hash;
-    auth_ref_hash.msg_type = ref_msg.msg_type;
-    memcpy(auth_ref_hash.hash, ref_msg.hash, SIZE_HASH);
-    auth_ref_hash.seq = ref_msg.seq;
-    auth_ref_hash.hash_idx = ref_msg.hash_idx;
-    auth_ref_hash.cur_time = ref_msg.cur_time;
-    auth_ref_hash.new_hash_idx = ref_msg.new_hash_idx;
-    memcpy(auth_ref_hash.new_hash, ref_msg.new_hash, SIZE_HASH);
-    hash((uint8_t *)hash_res, (uint8_t *)&auth_ref_hash, (uint32_t)sizeof(auth_ref_hash));
-    if (secure_memcmp(hash_res, ref_msg.auth_ref, SIZE_HASH))
-    {
-      break;
-    }
-
-
-    cur_seq = ref_msg.seq;
-    parent = ref_msg.snd_id;
-    cur_hash_idx = ref_msg.new_hash_idx;
-    memcpy(cur_hash, ref_msg.new_hash, SIZE_HASH);
-    req_msg.snd_id = dev_id;
-    req_msg.msg_type = MSG_TYPE_REP_REF;
-
-    memset(key, 0, SIZE_KEY);
-    memcpy(key, (uint8_t *)KEY_ADDR, SIZE_KEY); // K
-    uint8_t auth_rep_refresh[SIZE_SIGNATURE] = {0};
-
-    struct req_msg_lmt auth_rep_ref_struct;
-    auth_rep_ref_struct.msg_type = req_msg.msg_type;
-    auth_rep_ref_struct.snd_id = req_msg.snd_id;
-    memcpy(auth_rep_ref_struct.auth_req, req_msg.auth_req, SIZE_HASH);
-    auth_rep_ref_struct.seq = req_msg.seq;
-    auth_rep_ref_struct.hash_idx = req_msg.hash_idx;
-    memcpy(auth_rep_ref_struct.hash, req_msg.hash, SIZE_HASH);
-    auth_rep_ref_struct.cur_time = req_msg.cur_time;
-    memcpy(auth_rep_ref_struct.lmt, (uint8_t *)LMT_ADDR, LMT_SIZE);   
-    hmac((uint8_t *)auth_rep, (uint8_t *)key, (uint32_t)SIZE_KEY, (uint8_t *)&auth_rep_ref_struct, (uint32_t)(sizeof(auth_rep_ref_struct)));
-
-    // create att_rep
-    struct att_rep att_rep_ref;
-    att_rep_ref.msg_type = MSG_TYPE_REP;
-    att_rep_ref.dev_id = dev_id;
-    att_rep_ref.par = parent;
-    att_rep_ref.seq = cur_seq;
-    memcpy(att_rep_ref.lmt, (uint8_t *)LMT_ADDR, LMT_SIZE);
-    memcpy(att_rep_ref.auth_rep, auth_rep, SIZE_HASH); // line 21
-    send_buf(&att_rep_ref, sizeof(att_rep_ref));           // line 22
-    break;
-
   case MSG_TYPE_REP:;
-    // if rep continue to rep_refresh (they're identical)
-  case MSG_TYPE_REP_REF:;
     struct att_rep rep_msg;
     if (rx_start > rx_end)
     {
@@ -531,11 +477,11 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     memset(rxdata, 0, sizeof(rxdata));
     rx_start = 0;
     rx_end = 0;
-    if (rep_msg.seq == cur_seq)
-    {
-      rep_msg.par = parent;
+   // if (rep_msg.seq == cur_seq)
+    //{
+     // rep_msg.par = parent;
       send_buf(&rep_msg, sizeof(rep_msg));
-    }
+   // }
     break;
   default:
     break;

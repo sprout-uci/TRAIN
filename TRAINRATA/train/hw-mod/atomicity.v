@@ -43,7 +43,7 @@ begin
 end
 
 wire is_mid_rom = pc > SMEM_BASE && pc < LAST_SMEM_ADDR;
-wire is_first_rom = pc == SMEM_BASE | pc == 16'ha108 | pc == 16'ha18a;
+wire is_first_rom = pc == SMEM_BASE | pc == 16'ha2d4 | pc == 16'ha108 | pc == 16'ha378;
 wire is_last_rom = pc == LAST_SMEM_ADDR;
 wire is_in_rom = is_mid_rom | is_first_rom | is_last_rom;
 wire is_outside_rom = pc < SMEM_BASE | pc > LAST_SMEM_ADDR;
