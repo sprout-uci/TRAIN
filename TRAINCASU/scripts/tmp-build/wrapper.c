@@ -44,10 +44,10 @@
 #define SCACHE_FLAG (0xFFDF)
 #define SCACHE_IVT (0xFFE0)
 
-#define EP_START (0x0140)
-#define EP_END (0x0142)
-#define B_EP_START (0xFFDA)
-#define B_EP_END (0xFFDC)
+#define EP_START (0x0070)
+#define EP_END (0xFFDC)
+#define B_EP_START (0xFECC)
+#define B_EP_END (0xFECE)
 
 #define SIZE_SW_SIZE (2)
 #define SIZE_VER_INFO (2)
@@ -127,6 +127,15 @@ struct __attribute__((__packed__)) req_msg
   uint32_t cur_time;
 };
 
+struct __attribute__((__packed__)) att_req_msg
+{
+  uint8_t msg_type;
+  uint32_t snd_id;
+  uint32_t hash_idx;
+  uint8_t hash[SIZE_HASH];
+  uint32_t cur_time;
+};
+
 struct __attribute__((__packed__)) ref_msg
 {
   uint8_t msg_type;
@@ -162,9 +171,9 @@ struct __attribute__((__packed__)) auth_ref_hash
 
 struct __attribute__((__packed__)) auth_rep
 {
-  uint8_t msg_type;
   uint32_t dev_id;
-  uint32_t cur_seq;
+  uint32_t cur_time;
+  uint8_t new_hash[SIZE_HASH];
 };
 
 struct __attribute__((__packed__)) att_rep
@@ -172,7 +181,8 @@ struct __attribute__((__packed__)) att_rep
   uint8_t msg_type;
   uint32_t dev_id;
   uint32_t par;
-  uint32_t seq;
+  uint32_t attesttime;
+  uint8_t new_hash[SIZE_HASH];
   uint8_t auth_rep[SIZE_HASH];
 };
 
@@ -202,10 +212,13 @@ uint8_t rx_end = 0;
 
 // REQ MSG: 0 ||  Snd  || Auth_req ||  Seq || HashIdx || Hash || Time
 //       (1byte) (4byte)  (4byte)    (4byte)  (4byte)  (32byte)  (4byte)
+//^sha256 is 256 bits, so shouldn't hash be 32 bytes??
 __attribute__((section(".do_mac.call"))) void tcb_entry()
 {
-
+  //__eint();
   /********** SETUP ON ENTRY **********/
+
+  // CASU stuff and FIRST boot
 
   __asm__ volatile("mov    #0x1000,     r1"
                    "\n\t");
@@ -222,33 +235,120 @@ __attribute__((section(".do_mac.call"))) void tcb_entry()
   __asm__ volatile("jeq    CASU_update_authenticate"
                    "\n\t");
 
-  uint32_t *wdt = (uint32_t *)(WDTCTL_);
-  *wdt = WDTPW | WDTHOLD;
-
+ // CCTL0 = CCIE;                            // CCR0 interrupt enabled
+ // CCR0  = 1000;
+ // TACTL = TASSEL_2 + MC_1 + ID_3;    
   // Init UART
   UART_BAUD = BAUD;
-  UART_CTL = UART_EN; // SMCLK, contmode
+  UART_CTL = UART_EN | UART_IEN_RX;; 
 
-  P3DIR = 0xFF;
-  P3OUT = 0xFF;
-
-  time_sync();
-
-  UART_CTL = UART_EN | UART_IEN_RX;
+  // P3DIR = 0xFF;
+  // P3OUT = 0xFF;
 
   __asm__ volatile("jmp    CASU_jump_to_ER_routine_init"
                    "\n\t");
 }
 
-#pragma vector = UART_RX_VECTOR
-__interrupt __attribute__((section(".do_mac.body"))) void uart(void)
+#pragma vector = TIMERA0_VECTOR
+__interrupt __attribute__((section(".exec.init1"))) void timer(void)
 {
+  __asm__ volatile("mov    r1,   r6"
+                   "\n\t");
+  __asm__ volatile("mov    #0x1000,     r1"
+                   "\n\t");
+  __asm__ volatile("dint"
+                   "\n\t");
+  struct auth_rep retrieved_struct;
+  struct auth_rep *ptr = (struct auth_rep *)(uintptr_t)0x5800;
+  retrieved_struct = *ptr;
+
+  uint32_t tim;
+  uint32_t *timptr = (uint32_t)(uintptr_t)0x5768;
+  uint32_t wait = retrieved_struct.cur_time * 6;
+  tim = *timptr;
+  if (tim > wait)
+  {
+    //    send_buf(&retrieved_struct,  sizeof(retrieved_struct));
+    uint8_t key[SIZE_KEY] = {0};
+    uint8_t auth_rep[SIZE_SIGNATURE] = {0};
+    memset(key, 0, SIZE_KEY);
+    memcpy(key, (uint8_t *)KEY_ADDR, SIZE_KEY); // K
+    hmac((uint8_t *)auth_rep, (uint8_t *)key, (uint32_t)SIZE_KEY, (uint8_t *)&retrieved_struct, (uint32_t)(sizeof(retrieved_struct)));
+
+    // send_buf(&auth_rep, SIZE_HASH);
+
+    struct att_rep att_rep;
+
+    att_rep.msg_type = MSG_TYPE_REP;
+    att_rep.dev_id = dev_id;
+    att_rep.par = parent;
+    att_rep.attesttime = retrieved_struct.cur_time;               
+    memcpy(att_rep.new_hash, retrieved_struct.new_hash, SIZE_HASH); 
+    memcpy(att_rep.auth_rep, auth_rep, SIZE_HASH);                 
+
+    send_buf(&att_rep, sizeof(att_rep));
+
+    CCTL0 &= ~CCIE;
+    UART_CTL = UART_EN | UART_IEN_RX;
+    epoch_time++;
+    tim = 0;
+  }
+  else
+  {
+    tim++;
+    uintptr_t timer_address = (uintptr_t)0x5768;
+    uint32_t *timerptr = (uint32_t *)timer_address;
+    *timerptr = tim;
+  }
+  __asm__ volatile("eint"
+                   "\n\t");
+  __asm__ volatile("mov    r6,   r1"
+                   "\n\t");
+  __asm__ volatile("add	#182,	r1"
+                   "\n\t");
+  __asm__ volatile("pop r4"
+                   "\n\t");
+  __asm__ volatile("pop r10"
+                   "\n\t");
+  __asm__ volatile("pop r11"
+                   "\n\t");
+  __asm__ volatile("pop r12"
+                   "\n\t");
+  __asm__ volatile("pop r13"
+                   "\n\t");
+  __asm__ volatile("pop r14"
+                   "\n\t");
+  __asm__ volatile("pop r15"
+                   "\n\t");
+  __asm__ volatile("pop r2"
+                   "\n\t");
+  __asm__ volatile("pop r5"
+                   "\n\t");
+  __asm__ volatile("br #__mac_leave"
+                   "\n\t");
+}
+
+#pragma vector = UART_RX_VECTOR
+__interrupt __attribute__((section(".exec.init2"))) void uart(void)
+{
+  __asm__ volatile("mov    r1,   r6"
+                   "\n\t");
+  __asm__ volatile("mov    #0x1000,     r1"
+                   "\n\t");
+  __asm__ volatile("dint"
+                   "\n\t");
   uint8_t sendByte = ACK;
   send_buf(&sendByte, sizeof(sendByte));
 
   read_byte();
-  P3OUT = ~P3OUT;
-
+  // P3OUT = ~P3OUT;
+  TACCTL0 &= ~CCIFG;
+  __asm__ volatile("eint"
+                   "\n\t");
+  //reenable interrupts
+  // clear any pending timer interrupts
+  __asm__ volatile("mov    r6,   r1"
+                   "\n\t");
   __asm__ volatile("incd	r1"
                    "\n\t");
   __asm__ volatile("pop r12"
@@ -270,12 +370,13 @@ __interrupt __attribute__((section(".do_mac.body"))) void uart(void)
 __attribute__((section(".do_mac.lib"))) void read_byte()
 {
   struct req_msg req_msg;
+  struct att_req_msg att_req_msg;
   uint8_t rxbyte = 0;
   uint8_t key[SIZE_KEY] = {0};
   while (rxbyte != END_BYTE)
   {
     recv_buf(&rxbyte, sizeof(rxbyte));
-    P3OUT = ~P3OUT;
+    // P3OUT = ~P3OUT;
 
     if (rxbyte != END_BYTE)
     {
@@ -288,237 +389,103 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     }
     send_buf(&rxbyte, sizeof(rxbyte));
   }
+  // send_buf(&rxdata[0], sizeof(RING_BUF_SIZE));
   switch (rxdata[rx_start])
   {
-  case MSG_TYPE_REQ:
+  case MSG_TYPE_REQ: // verify state
     if (rx_start > rx_end)
     {
-      my_memcpy((uint8_t *)&req_msg, &rxdata[rx_start], RING_BUF_SIZE - rx_start);
-      my_memcpy(((uint8_t *)&req_msg + RING_BUF_SIZE - rx_start), &rxdata[0], rx_end + 1);
+      my_memcpy((uint8_t *)&att_req_msg, &rxdata[rx_start], RING_BUF_SIZE - rx_start); 
+      my_memcpy(((uint8_t *)&att_req_msg + RING_BUF_SIZE - rx_start), &rxdata[0], rx_end + 1);
     }
     else
     {
-      my_memcpy((uint8_t *)&req_msg, &rxdata[rx_start], rx_end - rx_start + 1);
+      my_memcpy((uint8_t *)&att_req_msg, &rxdata[rx_start], rx_end - rx_start + 1);
     }
-    send_buf((uint8_t *)&req_msg, sizeof(req_msg));
+   // send_buf((uint8_t *)&att_req_msg, sizeof(att_req_msg));
     memset(rxdata, 0, sizeof(rxdata));
     rx_start = 0;
     rx_end = 0;
 
-    /*
-    struct __attribute__((__packed__)) req_msg {
-  uint8_t msg_type;     \x00
-  uint32_t snd_id;      HOST
-  uint8_t auth_req[SIZE_HASH]; 32 bytes \x9a\n\xc9\xd1\\\x0f\x11\xff\x8bC\xc0\x02\r\xaa\xa7\xf1\x15\xfcu\xe1r\xc5^*\xf9~\x87\x0b\xb7\xe6\x868
-  uint32_t seq;   0004       \x04\x00\x00\x00
-  uint32_t hash_idx; 0079   \x4F\x00\x00\x00
-  uint8_t hash[SIZE_HASH]; 32 bytes BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
-  uint32_t cur_time; 0009     \x09\x00\x00\x00
-  };*/
+    uint8_t sendF = ACKTWO;
+    uint8_t sendB = 'b';
+    uint8_t sendG = 'g';
+    uint8_t sendH = 'h';
+    uint8_t sendI = 'i';
+    uint8_t sendJ = 'j';
+
+   // send_buf(&sendF, sizeof(sendF));
+   // send_buf((uint8_t *)&att_req_msg.msg_type, sizeof(uint8_t));
+   // send_buf(&sendF, sizeof(sendF));
+   // send_buf((uint8_t *)&att_req_msg.snd_id, sizeof(uint32_t));
+   // send_buf(&sendF, sizeof(sendF));
+   // send_buf((uint8_t *)&att_req_msg.hash_idx, sizeof(uint32_t));
+   // send_buf(&sendF, sizeof(sendF));
+  //  send_buf((uint8_t *)&att_req_msg.hash, SIZE_HASH);
+   // send_buf(&sendF, sizeof(sendF));
+  //  send_buf((uint8_t *)&att_req_msg.cur_time, sizeof(uint32_t));
+   // send_buf(&sendF, sizeof(sendF));
 
     uint8_t hash_res[SIZE_HASH] = {0};
-    if (cur_seq >= req_msg.seq)
-    {
-      break;
-    }
-    if (cur_hash_idx > req_msg.hash_idx)
+    if (cur_hash_idx > att_req_msg.hash_idx) // line 8
     {
       uint8_t input_hash[SIZE_HASH];
-      memcpy(input_hash, req_msg.hash, SIZE_HASH);
-      for (int i = 0; i < cur_hash_idx - req_msg.hash_idx; i++)
+      memcpy(input_hash, att_req_msg.hash, SIZE_HASH);
+      for (int i = 0; i < cur_hash_idx - att_req_msg.hash_idx; i++)
       {
         hash((uint8_t *)hash_res, (uint8_t *)input_hash, (uint32_t)SIZE_HASH);
         memcpy(input_hash, hash_res, SIZE_HASH);
       }
       if (secure_memcmp(hash_res, cur_hash, SIZE_HASH) != 0)
       {
-        break;
+        return;
       }
-    }
-    memset(hash_res, 0, sizeof(hash_res));
-
-    struct auth_req_hash auth_req_hash;
-    auth_req_hash.msg_type = req_msg.msg_type;
-    memcpy(auth_req_hash.hash, req_msg.hash, SIZE_HASH);
-    auth_req_hash.seq = req_msg.seq;
-    auth_req_hash.hash_idx = req_msg.hash_idx;
-    auth_req_hash.cur_time = req_msg.cur_time;
-
-    // hash_res is the heartbeat.
-    hash((uint8_t *)hash_res, (uint8_t *)&auth_req_hash, (uint32_t)sizeof(auth_req_hash));
-
-    if (secure_memcmp(hash_res, req_msg.auth_req, SIZE_HASH))
-
-    {
-      break;
-    }
-
-    cur_seq = req_msg.seq;
-    parent = req_msg.snd_id;
-    cur_hash_idx = req_msg.hash_idx;
-    memcpy(cur_hash, req_msg.hash, SIZE_HASH);
-    req_msg.snd_id = dev_id;
-    req_msg.msg_type = MSG_TYPE_REP;
-
-    uint32_t delay_cycles;
-    uint32_t req_time;
-    uint16_t taccr0_high, taccr0_low;
-
-
-    req_time = req_msg.cur_time;
-    TACTL = TASSEL_2 + MC_1 + ID_3;
-    delay_cycles = (uint32_t)req_time * 137500UL;
-    // Check for timer overflow
-    taccr0_high = (uint16_t)(delay_cycles >> 16);
-    taccr0_low = (uint16_t)(delay_cycles & 0xFFFF);
-
-    if (taccr0_high > 0) {
-        while (req_time > 0) {
-            if (req_time >= 65536) {
-                TACCR0 = 0xFFFF;
-                req_time -= 65536;
-            } else {
-                TACCR0 = (uint16_t)((uint32_t)req_time * 137500UL);
-                req_time = 0;
-            }
-            TAR = 0x00;
-            while ((TACCR0 - TAR) != 0) {
-              // send_buf(&sendF, sizeof(sendF));
-            }
-        }
-    } else {
-        TACCR0 = taccr0_low;
-        TAR = 0x00;
-        while ((TACCR0 - TAR) != 0) {
-           // send_buf(&sendF, sizeof(sendF));
-        }
-    }
-
-    memset(key, 0, SIZE_KEY);
-    memcpy(key, (uint8_t *)KEY_ADDR, SIZE_KEY);
-    uint8_t auth_rep[SIZE_SIGNATURE] = {0};
-
-    hmac((uint8_t *)auth_rep, (uint8_t *)key, (uint32_t)SIZE_KEY, (uint8_t *)&req_msg, (uint32_t)(sizeof(req_msg)));
-
-    // create att_rep
-    struct att_rep att_rep;
-    att_rep.msg_type = MSG_TYPE_REP;
-    att_rep.dev_id = dev_id;
-    att_rep.par = parent;
-    att_rep.seq = cur_seq;
-    memcpy(att_rep.auth_rep, auth_rep, SIZE_HASH);
-    send_buf(&att_rep, sizeof(att_rep));
-    break;
-
-  case MSG_TYPE_REF:;
-    struct ref_msg ref_msg;
-    if (rx_start > rx_end)
-    {
-      my_memcpy((uint8_t *)&ref_msg, &rxdata[rx_start], RING_BUF_SIZE - rx_start);
-      my_memcpy(((uint8_t *)&ref_msg + RING_BUF_SIZE - rx_start), &rxdata[0], rx_end + 1);
     }
     else
     {
-      my_memcpy((uint8_t *)&ref_msg, &rxdata[rx_start], rx_end - rx_start + 1);
-    }
-    send_buf((uint8_t *)&ref_msg, sizeof(ref_msg));
-    memset(rxdata, 0, sizeof(rxdata));
-    rx_start = 0;
-    rx_end = 0;
-    if (cur_seq >= ref_msg.seq)
-    {
-      break;
-    }
-    if (cur_hash_idx > ref_msg.hash_idx)
-    {
-      uint8_t input_hash[SIZE_HASH];
-      memcpy(input_hash, ref_msg.hash, SIZE_HASH);
-      for (int i = 0; i < cur_hash_idx - ref_msg.hash_idx; i++)
-      {
-        hash((uint8_t *)hash_res, (uint8_t *)input_hash, (uint32_t)SIZE_HASH);
-        memcpy(input_hash, hash_res, SIZE_HASH);
-      }
-      if (secure_memcmp(hash_res, cur_hash, SIZE_HASH) != 0)
-      {
-        break;
-      }
+      return;
     }
     memset(hash_res, 0, sizeof(hash_res));
-    struct auth_ref_hash auth_ref_hash;
-    auth_ref_hash.msg_type = ref_msg.msg_type;
-    memcpy(auth_ref_hash.hash, ref_msg.hash, SIZE_HASH);
-    auth_ref_hash.seq = ref_msg.seq;
-    auth_ref_hash.hash_idx = ref_msg.hash_idx;
-    auth_ref_hash.cur_time = ref_msg.cur_time;
-    auth_ref_hash.new_hash_idx = ref_msg.new_hash_idx;
-    memcpy(auth_ref_hash.new_hash, ref_msg.new_hash, SIZE_HASH);
-    hash((uint8_t *)hash_res, (uint8_t *)&auth_ref_hash, (uint32_t)sizeof(auth_ref_hash));
-    if (secure_memcmp(hash_res, ref_msg.auth_ref, SIZE_HASH))
-    {
-      break;
-    }
 
+    parent = att_req_msg.snd_id;
+    cur_hash_idx = att_req_msg.hash_idx;
+   // send_buf(&cur_hash, SIZE_HASH);
+   // send_buf(&att_req_msg.hash, SIZE_HASH);
+    memcpy(cur_hash, att_req_msg.hash, SIZE_HASH);
+  //  send_buf(&cur_hash, SIZE_HASH);
+    att_req_msg.snd_id = dev_id;
+    att_req_msg.msg_type = MSG_TYPE_REP;
 
-    cur_seq = ref_msg.seq;
-    parent = ref_msg.snd_id;
-    cur_hash_idx = ref_msg.new_hash_idx;
-    memcpy(cur_hash, ref_msg.new_hash, SIZE_HASH);
-    req_msg.snd_id = dev_id;
-    req_msg.msg_type = MSG_TYPE_REP_REF;
+   // send_buf(&sendI, sizeof(sendI));
+   // send_buf(&sendI, sizeof(sendI));
+   // send_buf(&att_req_msg, sizeof(att_req_msg));
 
+    struct auth_rep auth_rep_struct;
+    auth_rep_struct.dev_id = parent;
+    auth_rep_struct.cur_time = att_req_msg.cur_time;
+    memcpy(auth_rep_struct.new_hash, att_req_msg.hash, SIZE_HASH);
 
-    uint32_t delay_cycle;
-    uint32_t timer;
-    uint16_t ccr0_high, ccr0_low;
+    uintptr_t memory_address = (uintptr_t)0x5800;
+    struct auth_rep *ptr = (struct auth_rep *)memory_address;
+    *ptr = auth_rep_struct;
 
+   
+    //enable timer interrupt
+    TACTL = TASSEL_2 + ID_3 + MC_1;
+    TACCR0 = TRAPS_TIME;
+    uint32_t timr = 0;
+    uintptr_t timer_address = (uintptr_t)0x5768;
+    uint32_t *timerptr = (uint32_t *)timer_address;
+    *timerptr = timr;
 
-    timer = req_msg.cur_time;
-    TACTL = TASSEL_2 + MC_1 + ID_3;
-    delay_cycle = (uint32_t)timer * 137500UL;
-    ccr0_high = (uint16_t)(delay_cycle >> 16);
-    ccr0_low = (uint16_t)(delay_cycle & 0xFFFF);
-
-    if (ccr0_high > 0) {
-        while (timer > 0) {
-            if (timer >= 65536) {
-                TACCR0 = 0xFFFF;
-                timer -= 65536;
-            } else {
-                TACCR0 = (uint16_t)((uint32_t)timer * 137500UL);
-                timer = 0;
-            }
-            TAR = 0x00;
-            while ((TACCR0 - TAR) != 0) {
-            }
-        }
-    } else {
-        TACCR0 = ccr0_low;
-        TAR = 0x00;
-        while ((TACCR0 - TAR) != 0) {
-        }
-    }
-
-    memset(key, 0, SIZE_KEY);
-    memcpy(key, (uint8_t *)KEY_ADDR, SIZE_KEY);
-    uint8_t auth_rep_refresh[SIZE_SIGNATURE] = {0};
-    hmac((uint8_t *)auth_rep_refresh, (uint8_t *)key, (uint32_t)SIZE_KEY, (uint8_t *)&req_msg, (uint32_t)(sizeof(req_msg)));
-
-    struct att_rep att_rep_ref;
-    att_rep_ref.msg_type = MSG_TYPE_REP_REF;
-    att_rep_ref.dev_id = dev_id;
-    att_rep_ref.par = parent;
-    att_rep_ref.seq = cur_seq;
-    memcpy(att_rep_ref.auth_rep, auth_rep_refresh, SIZE_HASH);
-    send_buf(&att_rep_ref, sizeof(att_rep_ref));
+    CCTL0 = CCIE; 
+    UART_CTL &= ~UART_IEN_RX;
     break;
-
   case MSG_TYPE_REP:;
-    // if rep continue to rep_refresh (they're identical)
-  case MSG_TYPE_REP_REF:;
     struct att_rep rep_msg;
     if (rx_start > rx_end)
     {
-      my_memcpy((uint8_t *)&rep_msg, &rxdata[rx_start], RING_BUF_SIZE - rx_start);
+      my_memcpy((uint8_t *)&rep_msg, &rxdata[rx_start], RING_BUF_SIZE - rx_start); // line 4
       my_memcpy(((uint8_t *)&rep_msg + RING_BUF_SIZE - rx_start), &rxdata[0], rx_end + 1);
     }
     else
@@ -529,11 +496,11 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
     memset(rxdata, 0, sizeof(rxdata));
     rx_start = 0;
     rx_end = 0;
-    if (rep_msg.seq == cur_seq)
-    {
-      rep_msg.par = parent;
-      send_buf(&rep_msg, sizeof(rep_msg));
-    }
+    // if (rep_msg.attesttime == cur_time)
+    // {
+    //    rep_msg.par = parent;
+       send_buf(&rep_msg, sizeof(rep_msg));
+    // }
     break;
   default:
     break;
@@ -608,7 +575,7 @@ __attribute__((section(".do_mac.body"))) void CASU_jump_to_ER_routine_init()
 {
 
   // Read the ER start address from EP_START and store in r5
-  __asm__ volatile("mov    #0x0140,   r5"
+  __asm__ volatile("mov    #0x0070,   r5"
                    "\n\t");
   __asm__ volatile("mov    @(r5),     r5"
                    "\n\t");
@@ -651,7 +618,7 @@ __attribute__((section(".do_mac.body"))) void CASU_jump_to_ER_routine()
 {
 
   // Read the ER start address from EP_START and store in r5
-  __asm__ volatile("mov    #0x0140,   r5"
+  __asm__ volatile("mov    #0x0070,   r5"
                    "\n\t");
   __asm__ volatile("mov    @(r5),     r5"
                    "\n\t");
@@ -770,7 +737,7 @@ void CASU_secure_update(uint8_t *update_code, uint8_t *signature)
 /************ UART COMS ************/
 __attribute__((section(".do_mac.lib"))) void recv_buf(uint8_t *rx_data, uint16_t size)
 {
-  P3OUT ^= 0x40;
+  // P3OUT ^= 0x40;
   unsigned int i = 0, j;
   unsigned long time = 0;
   while (i < size && time != UART_TIMEOUT)
@@ -803,12 +770,14 @@ __attribute__((section(".do_mac.lib"))) void recv_buf(uint8_t *rx_data, uint16_t
       i++;
     }
   }
-  P3OUT ^= 0x40;
+  // P3OUT ^= 0x40;
 }
 
 __attribute__((section(".do_mac.lib"))) void send_buf(uint8_t *tx_data, uint16_t size)
 {
-  P3OUT ^= 0x20;
+
+  //__asm__ volatile("dint" "\n\t");
+  // P3OUT ^= 0x20;
   unsigned int i, j;
   for (i = 0; i < size; i++)
   {
@@ -827,5 +796,5 @@ __attribute__((section(".do_mac.lib"))) void send_buf(uint8_t *tx_data, uint16_t
     } // wait for buffer to clear before sending next char
 #endif
   }
-  P3OUT ^= 0x20;
+  // P3OUT ^= 0x20;
 }

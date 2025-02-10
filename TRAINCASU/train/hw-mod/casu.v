@@ -32,10 +32,10 @@ parameter SMEM_BASE = 16'hA000;
 parameter SMEM_SIZE = 16'h4000;
 
 parameter SCACHE_BASE  = 16'hFFDF;
-parameter SCACHE_SIZE  = 16'h0033;
+parameter SCACHE_SIZE  = 16'h0021;
 
-parameter EP_BASE  = 16'h0140;
-parameter EP_SIZE  = 16'h0003;
+parameter EP_BASE  = 16'h0070;
+parameter EP_SIZE  = 16'h0004;
 
 parameter RESET_HANDLER = 16'h0000;
 

@@ -38,7 +38,7 @@ input              puc_rst;         // Main system reset
 
 
 // Register base address (must be aligned to decoder bit width)
-parameter       [14:0] BASE_ADDR   = 15'h0140;
+parameter       [14:0] BASE_ADDR   = 15'h0070;
 
                                                          
 // Decoder bit width (defines how many bits are considered)

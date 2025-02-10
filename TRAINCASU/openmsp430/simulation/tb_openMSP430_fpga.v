@@ -128,19 +128,28 @@ wire         [7:0] p3_din = dut.p3_din;
 wire         [7:0] p3_dout = dut.p3_dout;
 wire         [7:0] p3_dout_en = dut.p3_dout_en;
 
+//wire         [7:0] p2_din = dut.p2_din;
+//wire         [7:0] p2_dout = dut.p2_dout;
+//wire         [7:0] p2_dout_en = dut.p2_dout_en;
+//wire         [7:0] p2_dout_en = dut.p2_dout_en;
+//wire         [7:0] p2_sel = dut.p2_sel;
+//wire         [7:0] p2_io_din = dut.p2_io_din;
+
+//wire        irq_port1 = dut.gpio_0.irq_port1;
+//wire        irq_port1d = dut.irq_port1;
+//wire        irq_port1dd = irq_port1;
+//wire        irq_port2 = dut.gpio_0.irq_port2;
+
 wire         [7:0] p1_din = dut.p1_din;
 wire         [7:0] p1_dout = dut.p1_dout;
-wire         [7:0] p1_dout_en = dut.p1_dout_en;
-
-
-
+wire         [7:0] p1_sel = dut.p1_sel;
+wire         [7:0] p1_io_din = dut.p1_io_din;
 
 
 // RESET SIGNAL
 wire         puc_rst = dut.puc_rst;
 wire         reset_pin_n = dut.reset_pin_n;
 
-//VAPE
 //mclk
 wire              LED8;
 // CPU registers
@@ -164,7 +173,7 @@ wire       [15:0] r13   = dut.openMSP430_0.execution_unit_0.register_file_0.r13;
 wire       [15:0] r14   = dut.openMSP430_0.execution_unit_0.register_file_0.r14;
 wire       [15:0] r15   = dut.openMSP430_0.execution_unit_0.register_file_0.r15;
 
-//VRASED values
+// VRASED values
 wire        vrased_clk  = dut.openMSP430_0.hdmod_0.vrased_0.clk;
 wire        [15:0] vrased_pc  = dut.openMSP430_0.hdmod_0.vrased_0.pc;
 
@@ -193,7 +202,6 @@ wire        uart_rx_irq  = dut.uart_0.irq_uart_rx;
 wire        uart_rxd  = dut.uart_0.uart_rxd;
 wire        uart_tx_irq  = dut.uart_0.irq_uart_tx;
 wire        uart_txd  = dut.uart_0.uart_txd;
-
 
 // RAM cells
 //======================

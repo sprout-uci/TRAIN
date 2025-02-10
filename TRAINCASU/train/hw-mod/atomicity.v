@@ -28,6 +28,8 @@ parameter RESET_HANDLER = 16'hfffe;
 parameter SMEM_BASE = 16'hE000;
 parameter SMEM_SIZE = 16'h1000;
 parameter LAST_SMEM_ADDR = SMEM_BASE + SMEM_SIZE - 2;
+parameter ISR1_BASE = 16'hDC00;
+parameter ISR2_BASE = 16'hDE00;
 /////////////////////////////////////////////////////
 
 
@@ -43,7 +45,7 @@ begin
 end
 
 wire is_mid_rom = pc > SMEM_BASE && pc < LAST_SMEM_ADDR;
-wire is_first_rom = pc == SMEM_BASE | pc == 16'ha226; //| pc == 16'ha072;
+wire is_first_rom = pc == SMEM_BASE | pc == ISR1_BASE | pc == ISR2_BASE; //| pc == 16'ha072;
 wire is_last_rom = pc == LAST_SMEM_ADDR;
 wire is_in_rom = is_mid_rom | is_first_rom | is_last_rom;
 wire is_outside_rom = pc < SMEM_BASE | pc > LAST_SMEM_ADDR;

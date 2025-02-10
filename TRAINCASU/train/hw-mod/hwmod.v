@@ -60,7 +60,7 @@ parameter KMEM_SIZE = 16'h0040;
 parameter SCACHE_BASE  = 16'hFFDF;
 parameter SCACHE_SIZE  = 16'h0021;
 
-parameter EP_BASE = 16'h0140;
+parameter EP_BASE = 16'h0070;
 parameter EP_SIZE = 16'h0004;
 
 parameter HMAC_BASE = 16'h03D0;

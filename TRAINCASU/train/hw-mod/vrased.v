@@ -47,11 +47,11 @@ parameter SMEM_SIZE = 16'h4000;
 parameter KMEM_BASE = 16'h6A00;
 parameter KMEM_SIZE = 16'h0040;
 //
-parameter CTR_BASE = 16'h0140;
-parameter CTR_SIZE = 16'h001F;
+parameter CTR_BASE = 16'h0070;
+parameter CTR_SIZE = 16'h0004;
 //
 parameter SCACHE_BASE = 16'hFFDF;
-parameter SCACHE_SIZE = 16'h0033;
+parameter SCACHE_SIZE = 16'h0021;
 /////////////////////////////////////////////////////
 
 parameter RESET_HANDLER = 16'h0000;

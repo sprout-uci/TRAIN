@@ -7,8 +7,10 @@ MEMORY {
   peripheral_16bit : ORIGIN = 0x0100, LENGTH = 0x0100
   ram (wx)         : ORIGIN = DMEM_BASE, LENGTH = DMEM_SIZE
   rom (rx)         : ORIGIN = PMEM_BASE, LENGTH = PMEM_SIZE
-  srom (rx)         : ORIGIN = SMEM_BASE, LENGTH = SMEM_SIZE
-  vectors          : ORIGIN = 0xffe0, LENGTH = 0x0020
+  srom (rx)        : ORIGIN = SMEM_BASE, LENGTH = SMEM_SIZE
+  /* isr1             : ORIGIN = 0xDC00, LENGTH = 0x0200
+  isr2             : ORIGIN = 0xDE00, LENGTH = 0x0200 */
+  vectors          : ORIGIN = 0xFFE0, LENGTH = 0x0020
 }
 REGION_ALIAS("REGION_TEXT", rom);
 REGION_ALIAS("REGION_DATA", ram);
@@ -90,7 +92,7 @@ SECTIONS
     *(.text .text.* .gnu.linkonce.t.*)
     *(.near.text .near.text.*)
   }  > REGION_TEXT
-  .srom :
+  .srom1 :
   {
     KEEP(*(.init0))  /* Start here after reset.               */
     PROVIDE (__mac_start = .) ;
@@ -103,9 +105,22 @@ SECTIONS
     *(.do_mac.lib)
     . = ALIGN(2);
     *( .srom.libc)
-    __cur_offset = .;
     FILL(0x0343);
-    . += SMEM_SIZE - ( __cur_offset + 2) ;
+  } > srom
+  .isr1 0xDC00 :
+  {
+     PROVIDE (__exec_start = .) ;
+     *(.exec.init1)
+     . = ALIGN(2);
+  } > srom
+  .isr2 0xDE00 :
+  {
+     PROVIDE (__exec_start = .) ;
+     *(.exec.init2)
+     . = ALIGN(2);
+  } > srom
+  .srom2 (SMEM_BASE + SMEM_SIZE - 2):
+  {
     PROVIDE (__mac_leave = .) ;
     *(.do_mac.leave)
     PROVIDE (__mac_end = .) ;

@@ -244,7 +244,7 @@ wire        mclk_r2 = mclk;
 
 always @(posedge mclk_r2 or posedge puc_rst)
   if (puc_rst)         r2 <= 16'h0000;
-  else if (reg_sr_clr) r2 <= 16'h0000;
+ //else if (reg_sr_clr) r2 <= (r2 & (1 << 3));
   else                 r2 <= {7'h00, r2_v, r2_nxt, r2_n, r2_z, r2_c} & r2_mask;
 
 assign status = {r2[8], r2[2:0]};

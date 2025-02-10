@@ -28,13 +28,19 @@ parameter CTR_BASE = 16'h9000;
 parameter CTR_SIZE = 16'h001F;
 //
 parameter SCACHE_BASE = 16'hFFDF;
-parameter SCACHE_SIZE = 16'h0033;
+parameter SCACHE_SIZE = 16'h0021;
 //
 parameter SMEM_BASE = 16'hA000;
 parameter SMEM_SIZE = 16'h4000;
 //
 parameter KMEM_BASE = 16'hFEFE;
 parameter KMEM_SIZE = 16'h001F;
+
+parameter UART_BASE = 16'h0080;
+parameter UART_SIZE = 16'h0010;
+
+parameter INTR_BASE = 16'h0130;
+parameter INTR_SIZE = 16'h00D0;
 /////////////////////////////////////////////////////
 
 
@@ -69,9 +75,14 @@ wire daddr_in_CTR = !daddr_not_in_CTR;
 wire daddr_not_in_SCACHE = data_addr < SCACHE_BASE || data_addr > SCACHE_BASE + SCACHE_SIZE -1;
 wire daddr_in_SCACHE = !daddr_not_in_SCACHE;
 
+wire daddr_not_in_UART = data_addr < UART_BASE || data_addr > UART_BASE + UART_SIZE -1;
+wire daddr_in_UART = !daddr_not_in_UART;
+
+wire daddr_not_in_INTR = data_addr < INTR_BASE || data_addr > INTR_BASE + INTR_SIZE -1;
+wire daddr_in_INTR = !daddr_not_in_INTR;
+
 wire violation1 = pc_not_in_srom && daddr_in_sdata && (r_en || w_en);
-wire violation2 = 0;
-// wire violation2 = pc_in_srom && w_en && daddr_not_in_sdata && daddr_not_in_HMAC && daddr_not_in_CTR && daddr_not_in_SCACHE;
+wire violation2 = 0;//pc_in_srom && w_en && daddr_not_in_sdata && daddr_not_in_HMAC && daddr_not_in_CTR && daddr_not_in_SCACHE && daddr_not_in_UART && daddr_not_in_INTR;
 // wire violation2 = pc_in_srom && w_en && daddr_not_in_sdata && daddr_not_in_HMAC && daddr_not_in_CTR;
 wire violation3 = pc_not_in_srom && daddr_in_CTR && daddr_in_SCACHE && w_en;
 

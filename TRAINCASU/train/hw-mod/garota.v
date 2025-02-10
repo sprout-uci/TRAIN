@@ -14,7 +14,7 @@ module garota (
     data_addr,
     dma_addr,
     dma_en,
-	irq,
+	irq,	
 	gie,
 
     reset
@@ -31,14 +31,17 @@ input           gie;
 output          reset;
 
 parameter RESET_HANDLER = 16'h0000;
-//
+// Only secure code (including ISR-s) can control interrupt.
 parameter SMEM_BASE  = 16'hA000;
 parameter SMEM_SIZE  = 16'h4000;
-//
+
 parameter UART_BASE = 16'h0080;
 parameter UART_SIZE = 16'h0010;
 
-// TAROT ///////////////////////
+parameter INTR_BASE = 16'h0130;
+parameter INTR_SIZE = 16'h00D0;
+
+/* GAROTA */
 
 wire   uart_reset;
 memory_protection #(
@@ -58,7 +61,26 @@ memory_protection #(
     .reset      (uart_reset) 
 );
 
-wire    irq_tcb;
+wire   timer_reset;
+memory_protection #(
+    .PROTECTED_BASE  (INTR_BASE),
+    .PROTECTED_SIZE  (INTR_SIZE),
+    .TCB_BASE  (SMEM_BASE),
+    .TCB_SIZE  (SMEM_SIZE),
+    .RESET_HANDLER  (RESET_HANDLER)
+) interrupt_protection_timer (
+    .clk        (clk),
+    .pc         (pc),
+    .data_addr  (data_addr),
+    .w_en       (data_wr),
+	.dma_addr	(dma_addr),
+    .dma_en     (dma_en),
+
+    .reset      (timer_reset) 
+);
+
+
+wire    irq_tcb;		
 irq_detect #(
     .PROTECTED_BASE  (SMEM_BASE),
     .PROTECTED_SIZE  (SMEM_SIZE),
@@ -71,7 +93,19 @@ irq_detect #(
     .reset      (irq_tcb)
 );
 
-wire garota_rst = uart_reset | irq_tcb;
+wire    no_irq_disable;
+irq_disable_detect #(
+    .TCB_BASE  (SMEM_BASE),
+    .TCB_SIZE  (SMEM_SIZE),
+    .RESET_HANDLER  (RESET_HANDLER)
+) irq_disable_detect_0 (
+    .clk        (clk),
+    .pc         (pc),
+    .gie        (gie),
+    .reset      (no_irq_disable)
+);
+
+wire garota_rst = uart_reset | timer_reset | irq_tcb | no_irq_disable;
 assign reset = garota_rst;  
 
 endmodule

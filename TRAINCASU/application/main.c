@@ -74,13 +74,33 @@ int main()
   uint32_t *wdt = (uint32_t *)(WDTCTL_);
   *wdt = WDTPW | WDTHOLD;
 
+
+//TO IMPLEMENT
+//  UART_BAUD = BAUD;                   // Init UART
+ // UART_CTL  = UART_EN | UART_IEN_RX;  
+
   int i;
   const int iter = 5;
 
   // Set the LED
   initLed();
+  // Enable interrupts: NO YOU CANT DO THAT HERE INTERRUPTS CAN ONLY BE ENABLED OR DISABLED WITHIN THE TCB  
+ // __eint();
+  //Sample application: Blink P3 for 200ms for 5 times;
+  
+  for (i=0; i<iter; i++) {
+    P3OUT = 0x55;
+    delayMicroseconds(20);
+    P3OUT = 0xAA;
+    delayMicroseconds(20);
+  }
 
-  //Sample application: Blinking P3, easier for end user to generate interrupts
+
+  //this will never get called...
+  // Call Secure Update
+  //what if i just comment this out LOL
+  //i'll keep it for now...
+  
   while(1)
   {
     i++;
@@ -91,6 +111,8 @@ int main()
       i = 0;
     }
  }
+
+ // CASU_secure_update(update_code, signature);
 
   // Jump to zero, nothing. Note: PC should never come here.
   __asm__ volatile("br #0x0000" "\n\t");

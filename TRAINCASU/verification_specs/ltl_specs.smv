@@ -1,0 +1,148 @@
+    SMEM_BASE := 0uh16_A000;
+    SMEM_SIZE := 0uh16_4000;
+-- KEY RESERVED ROM
+    KMEM_BASE := 0uh16_6A00;
+    KMEM_SIZE := 0uh16_0040;
+-- STACK RESERVED ROM
+    SDATA_BASE := 0uh16_0400;
+    SDATA_SIZE := 0uh16_0C00;
+-- HMAC OUTPUT RESERVED ROM
+    HMAC_BASE := 0uh16_03D0;
+    HMAC_SIZE := 0uh16_0020;
+-- EP RESERVED MEM
+    EP_BASE := 0uh16_0070;
+    EP_SIZE := 0uh16_0004;
+-- CTR RESERVED MEM
+    CTR_BASE := EP_BASE;
+    CTR_SIZE := EP_SIZE;
+-- SCACHE RESERVED MEM
+    SCACHE_BASE := 0uh16_FFDF;
+    SCACHE_SIZE := 0uh16_0021;
+-- UART IRQ CONFIG BUFFER
+    UART_BASE := 0uh16_80;
+    UART_SIZE := 0uh16_10;
+-- TIMER IRQ CONFIG BUFFER
+    INTR_BASE := 0uh16_0130;
+    INTR_SIZE := 0uh16_00D0;
+-- ISR RESERVED MEM
+    ISR1_BASE := 0uh16_DC00;
+    ISR1_SIZE := 0uh16_0200;
+    ISR2_BASE := 0uh16_DE00;
+    ISR2_SIZE := 0uh16_0200;
+--
+    LAST_SMEM_ADDR := SMEM_BASE + SMEM_SIZE - 0uh16_2;
+    RESET_HANDLER := 0uh16_0000;
+
+
+    pc_in_srom := "pc" >= SMEM_BASE & "pc" <= LAST_SMEM_ADDR;
+    next_pc_in_srom := next("pc") >= SMEM_BASE & next("pc") <= LAST_SMEM_ADDR;
+    access_key := "data_en" & "data_addr" >= KMEM_BASE & "data_addr" < (KMEM_BASE + KMEM_SIZE);
+
+    next_pc_in_isr1 := next("pc") >= ISR1_BASE & next("pc") <= ISR1_BASE + ISR1_SIZE - 0uh16_2;
+    next_pc_in_isr2 := next("pc") >= ISR2_BASE & next("pc") <= ISR2_BASE + ISR2_SIZE - 0uh16_2;
+
+    pc_not_in_srom := !pc_in_srom; 
+    daddr_not_in_sdata := "data_addr" < SDATA_BASE | "data_addr" > SDATA_BASE + SDATA_SIZE - 0uh16_1;
+    daddr_in_sdata := !daddr_not_in_sdata;
+    daddr_not_in_HMAC := "data_addr" < HMAC_BASE | "data_addr" > HMAC_BASE + HMAC_SIZE - 0uh16_1;
+    daddr_not_in_CTR := "data_addr" < CTR_BASE | "data_addr" > CTR_BASE + CTR_SIZE - 0uh16_1;
+    daddr_not_in_SCACHE := "data_addr" < SCACHE_BASE | "data_addr" > SCACHE_BASE + SCACHE_SIZE - 0uh16_1;
+
+    dma_access_key := "dma_en" & "dma_addr" >= KMEM_BASE & "dma_addr" < (KMEM_BASE + KMEM_SIZE);
+    dma_access_X_stack := "dma_en" & "dma_addr" >= SDATA_BASE & "dma_addr" < (SDATA_BASE + SDATA_SIZE);
+    dma_write_CTR := "dma_en" & "dma_addr" >= CTR_BASE & "dma_addr" < (CTR_BASE + CTR_SIZE);
+    dma_write_SCACHE := "dma_en" & "dma_addr" >= SCACHE_BASE & "dma_addr" < (SCACHE_BASE + SCACHE_SIZE);
+
+    pc_reset := "pc" = RESET_HANDLER;
+    pc_in_casu := pc_in_srom;
+    pc_in_ER := "pc" >= "ER_min" & "pc" <= "ER_max";
+    mod_mem_ER := "data_wr" & ("data_addr" >= "ER_min" & "data_addr" <= "ER_max");
+    mod_mem_EP := "data_wr" & ("data_addr" >= EP_BASE & "data_addr" <= EP_BASE + EP_SIZE - 0uh16_2);
+    mod_mem_SCACHE := "data_wr" & ("data_addr" >= SCACHE_BASE & "data_addr" <= SCACHE_BASE + SCACHE_SIZE - 0uh16_2);
+    mod_mem_by_CPU := mod_mem_ER | mod_mem_EP | mod_mem_SCACHE;
+
+    mod_mem_ER_dma := "dma_en" & ("dma_addr" >= "ER_min" & "dma_addr" <= "ER_max");
+    mod_mem_EP_dma := "dma_en" & ("dma_addr" >= EP_BASE & "dma_addr" <= EP_BASE + EP_SIZE - 0uh16_2);
+    mod_mem_SCACHE_dma := "dma_en" & ("dma_addr" >= SCACHE_BASE & "dma_addr" <= SCACHE_BASE + SCACHE_SIZE - 0uh16_2);
+    mod_mem_by_DMA := mod_mem_ER_dma | mod_mem_EP_dma | mod_mem_SCACHE_dma;
+
+    pc_in_UART := "pc" >= UART_BASE & "pc" <= (UART_BASE + UART_SIZE - 0uh16_2);
+    pc_not_in_UART := !pc_in_UART;	
+    daddr_not_in_UART := "data_addr" < UART_BASE | "data_addr" > UART_BASE + UART_SIZE - 0uh16_1;
+    daddr_in_UART := !daddr_not_in_UART;
+    dma_not_in_UART := "dma_addr" < UART_BASE | "dma_addr" > UART_BASE + UART_SIZE - 0uh16_1;
+    dma_in_UART := !dma_not_in_UART;
+
+    pc_in_INTR := "pc" >= INTR_BASE & "pc" <= (INTR_BASE + INTR_SIZE - 0uh16_2);
+    pc_not_in_INTR := !pc_in_INTR;	
+    daddr_not_in_INTR := "data_addr" < INTR_BASE | "data_addr" > INTR_BASE + INTR_SIZE - 0uh16_1;
+    daddr_in_INTR := !daddr_not_in_INTR;
+    dma_not_in_INTR := "dma_addr" < INTR_BASE | "dma_addr" > INTR_BASE + INTR_SIZE - 0uh16_1;
+    dma_in_INTR := !dma_not_in_INTR;
+
+
+-- Premisses specifications---
+
+-- Reset correctness
+LTLSPEC G ("reset" -> (("reset" U "pc" = RESET_HANDLER) | G("reset")));
+
+-- Exclusive Access to Key ---
+LTLSPEC G ((!pc_in_srom & access_key) -> "reset");
+
+-- Atomicity Rules: (1) cannot leave in the middle of ROM code and (2) cannot jump into the middle of ROM code ---
+LTLSPEC G ( !"reset" & pc_in_srom & !next_pc_in_srom -> "pc" = LAST_SMEM_ADDR | next("reset") );
+LTLSPEC G ( !"reset" & !pc_in_srom & next_pc_in_srom -> next("pc") = SMEM_BASE | next("pc") = ISR1_BASE | next("pc") = ISR2_BASE | next("reset") );
+LTLSPEC G ( "irq" & pc_in_srom -> "reset");
+
+-- Exclusive Access to Secure Stack: (1) Only ROM code can read/write the stack and (2) ROM code cannot write outside the stack ---
+LTLSPEC G ((pc_not_in_srom & ("data_en" | "data_wr") & daddr_in_sdata) -> "reset");
+LTLSPEC G ((pc_in_srom & "data_wr" & daddr_not_in_sdata & daddr_not_in_HMAC & daddr_not_in_CTR & daddr_not_in_SCACHE & daddr_not_in_UART & daddr_not_in_INTR) -> "reset");
+
+-- Only ROM code can write counter
+LTLSPEC G ((pc_not_in_srom & "data_wr" & !daddr_not_in_CTR & !daddr_not_in_SCACHE & !daddr_not_in_UART & !daddr_not_in_INTR) -> "reset")
+
+-- DMA cant access the key
+LTLSPEC G (dma_access_key -> "reset");
+
+-- DMA write cant happen while in ROM
+LTLSPEC G (("dma_en" & pc_in_srom) -> "reset");
+
+-- Disallow any DMA access to the exclusive stack
+LTLSPEC G (dma_access_X_stack -> "reset");
+
+-- Disallow any DMA to write counter
+LTLSPEC G (dma_write_CTR | dma_write_SCACHE -> "reset");
+
+LTLSPEC ("reset" U ("pc" = RESET_HANDLER) | G"reset");
+--it s Weak until http://nusmv.fbk.eu/courses/icaps03/icaps03-mct.pdf p31
+-----------------------------
+
+----------------------------------------------------------------------------------
+------------------------------- CASU specifications ------------------------------
+----------------------------------------------------------------------------------
+
+-- Disallow any modifications to ER, SCACHE, EP by unauthorized programs
+LTLSPEC G (((!pc_in_casu & !pc_reset & mod_mem_by_CPU) | mod_mem_by_DMA) -> "reset");
+
+-- Disallow execution of any software other than ER and CASU (ROM)
+LTLSPEC G (!pc_in_casu & !pc_in_ER & !pc_reset -> "reset");
+
+
+----------------------------------------------------------------------------------
+------------------------------- GAROTA specifications ----------------------------
+----------------------------------------------------------------------------------
+
+-- PMEM write-protection (subsumes INIT, ISR (a.k.a., IRQ handlers), and IRQ vector protections)
+-- LTLSPEC G (("data_wr" & daddr_in_PMEM & pc_not_in_srom) | ("dma_en" & dma_in_PMEM) -> "reset");
+
+-- Interrupt Configuration Registers Protection (for GPIO, TIMER and UART)
+LTLSPEC G (("data_wr" & daddr_in_INTR & pc_not_in_srom) | ("dma_en" & dma_in_INTR) -> "reset"); -- TIMER A0
+LTLSPEC G (("data_wr" & daddr_in_UART & pc_not_in_srom) | ("dma_en" & dma_in_UART) -> "reset"); -- UART
+
+-- ISR code atomicity ---
+-- LTLSPEC G ( !"reset" & pc_in_ISR & !next_pc_in_ISR -> "pc" = LAST_ISR_ADDR | next("reset") );
+-- LTLSPEC G ( !"reset" & !pc_in_ISR & next_pc_in_ISR -> next("pc") = ISR_BASE | next("reset") );
+-- LTLSPEC G ( ("irq" | "dma_en") & pc_in_ISR -> "reset");
+
+-- Interrupt Disablement Protection
+LTLSPEC G ( (!"reset" & "gie" & !next("gie") ) -> (next_pc_in_isr1 | next_pc_in_isr2 | next("reset")) );
