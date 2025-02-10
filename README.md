@@ -161,6 +161,7 @@ python vrf_train.py
 ## 18. Expected Results
 * CASU-configured boards: **PASS** attestation
 * RATA-configured boards: **FAIL** attestation
+![Screenshot_20250209_165445](https://github.com/user-attachments/assets/e181b0a6-cee3-40ab-840a-841bc23c955f)
 
 ## 19. Troubleshooting Guide
 * **Device Detection Issues**
