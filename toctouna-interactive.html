@@ -1,0 +1,134 @@
+ 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive TOCTOUNA Vulnerability Visualization</title>
+    <link rel="stylesheet" href="toctouna-interactive.css">
+</head>
+<body>
+    <div class="container">
+        <h1>TOCTOUNA Vulnerability Visualization</h1>
+
+        <div class="controls">
+            <button id="reset-button" class="btn">Reset</button>
+            <button id="next-button" class="btn">Next Step</button>
+        </div>
+
+        <!-- TOCTOUNA Vulnerability Visualization -->
+        <div class="visualization-container">
+            <div class="timeline-container">
+                <div class="labels-column">
+                    <div style="height: 60px;"></div> <!-- Spacer for timeline -->
+                    <div class="device-label">Verifier</div>
+                    <div class="device-label">Device A</div>
+                    <div class="device-label">Device B</div>
+                    <div class="device-label">Cur Time: <div id="current-time">t₀</div></div>
+
+                </div>
+                
+                <div class="timeline-column">
+                    <!-- Timeline -->
+
+                    <div class="timeline">
+                        <!-- Time markers -->
+                        <div class="time-marker" style="left: 0%;">t₀</div>
+                        <div class="time-line" style="left: 0%;"></div>
+                        
+                        <div class="time-marker" style="left: 16.67%;">t₁</div>
+                        <div class="time-line" style="left: 16.67%;"></div>
+                        
+                        <div class="time-marker" style="left: 33.33%;">t₂</div>
+                        <div class="time-line" style="left: 33.33%;"></div>
+                        
+                        <div class="time-marker" style="left: 50%;">t₃</div>
+                        <div class="time-line" style="left: 50%;"></div>
+                        
+                        <div class="time-marker" style="left: 66.67%;">t₄</div>
+                        <div class="time-line" style="left: 66.67%;"></div>
+                        
+                        <div class="time-marker" style="left: 83.33%;">t₅</div>
+                        <div class="time-line" style="left: 83.33%;"></div>
+                        
+                        <!-- TOCTOUNA window -->
+                        <div class="toctouna-window toctouna-window-start toctouna-window-complete"></div>
+                    </div>
+                    
+                    <div class="toctou-label hidden">TOCTOU<sub>NA</sub> Window</div>
+                    
+                    <!-- TOCTOUNA highlight across devices -->
+                    <div class="toctou-highlight toctou-highlight-start toctou-highlight-complete"></div>
+                    
+                    <!-- Verifier -->
+                    <div class="device-row">
+                        <div class="device-timeline">
+                            <!-- Request sent -->
+                            <div class="event" data-time="0" style="left: 0%;">
+                                <div class="event-dot request">→</div>
+                                <div class="event-label">Send Request</div>
+                            </div>
+                            
+                            <!-- Device A report received -->
+                            <div class="event" data-time="2-verifier" style="left: 33.33%;">
+                                <div class="event-dot secure">✓</div>
+                                <div class="event-label">Receive A's Report</div>
+                            </div>
+                            
+                            <!-- Device B report received -->
+                            <div class="event" data-time="5" style="left: 83.33%;">
+                                <div class="event-dot secure">✓</div>
+                                <div class="event-label">Receive B's Report</div>
+                            </div>
+                            
+                            <!-- Erroneous conclusion -->
+                            <div class="warning" style="left: 85%; top: -10px;">
+                                ⚠️ Erroneously concludes both devices are benign
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Device A -->
+                    <div class="device-row device-a">
+                        <div class="device-timeline">
+                            <!-- Initial attestation -->
+                            <div class="event" data-time="1" style="left: 16.67%;">
+                                <div class="event-dot secure">✓</div>
+                                <div class="event-label">Receive and Attest</div>
+                            </div>
+                            
+                            <!-- Gets compromised -->
+                            <div class="event" data-time="3" style="left: 50%;">
+                                <div class="event-dot compromised">✗</div>
+                                <div class="event-label">Compromised</div>
+                            </div>
+                            
+                            <!-- State bars -->
+                            <div class="state-bar pending-state" data-time="0" style="left: 0; width: 16.67%;"></div>
+                            <div class="state-bar secure-state" data-time="1" style="left: 16.67%; width: 0;"></div>
+                            <div class="state-bar compromised-state" data-time="2" style="left: 50%; width: 0;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Device B -->
+                    <div class="device-row device-b">
+                        <div class="device-timeline">
+                            <!-- Delayed attestation -->
+                            <div class="event" data-time="4" style="left: 66.67%;">
+                                <div class="event-dot secure">✓</div>
+                                <div class="event-label">Receive and Attest</div>
+                            </div>
+                            
+                            <!-- State bars -->
+                            <div class="state-bar pending-state" data-time="0" style="left: 0; width: 50%;"></div>
+                            <div class="state-bar secure-state" data-time="3" style="left: 66.67%; width: 0;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="toctouna-interactive.js"></script>
+</body>
+</html>
