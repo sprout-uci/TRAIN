@@ -96,7 +96,7 @@ void CASU_update_install();
 void CASU_jump_to_ER_routine();
 void CASU_exit();
 void CASU_jump_to_ER_routine_init();
-int secure_memcmp(const uint8_t *s1, const uint8_t *s2, int size);
+int cst_memeq(const uint8_t* x, const uint8_t* y, int size);
 void recv_buf(uint8_t *rx_data, uint16_t size);
 void send_buf(uint8_t *tx_data, uint16_t size);
 void read_byte();
@@ -436,7 +436,7 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
         hash((uint8_t *)hash_res, (uint8_t *)input_hash, (uint32_t)SIZE_HASH);
         memcpy(input_hash, hash_res, SIZE_HASH);
       }
-      if (secure_memcmp(hash_res, cur_hash, SIZE_HASH) != 0)
+      if (cst_memeq(hash_res, cur_hash, SIZE_HASH) != 0)
       {
         return;
       }
@@ -529,7 +529,7 @@ __attribute__((section(".do_mac.body"))) void CASU_update_authenticate()
   hmac((uint8_t *)signature, (uint8_t *)key, (uint32_t)SIZE_KEY, (uint8_t *)bEP_min, (uint32_t)bEP_size);
 
   // Check if signature == SIG_RESP_ADDR. If yes, jump to CASU_update_install()
-  if (secure_memcmp(signature, (uint8_t *)SIG_RESP_ADDR, sizeof(signature)) == 0)
+  if (cst_memeq(signature, (uint8_t *)SIG_RESP_ADDR, sizeof(signature)) == 0)
   {
     CASU_update_install();
   }
@@ -660,24 +660,17 @@ __attribute__((section(".do_mac.body"))) void CASU_jump_to_ER_routine()
                    "\n\t");
 }
 
-__attribute__((section(".do_mac.body"))) int secure_memcmp(const uint8_t *s1, const uint8_t *s2, int size)
+inline __attribute__((section (".do_mac.body")))
+int cst_memeq(const uint8_t* x, const uint8_t* y, int size)
 {
-  int res = 0;
-  int first = 1;
-  for (int i = 0; i < size; i++)
-  {
-    if (first == 1 && s1[i] > s2[i])
-    {
-      res = 1;
-      first = 0;
+    volatile unsigned int d = 0U;
+    unsigned int i;
+
+    for (i = 0; i < size; i++) {
+        d |= x[i] ^ y[i];
     }
-    else if (first == 1 && s1[i] < s2[i])
-    {
-      res = -1;
-      first = 0;
-    }
-  }
-  return res;
+
+    return (1 & ((d - 1) >> 8)) - 1;
 }
 
 /* [CASU-SW] Exit function */

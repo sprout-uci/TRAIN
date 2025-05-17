@@ -248,6 +248,7 @@ __attribute__((section(".do_mac.lib"))) inline void my_memcpy(uint8_t* dst, uint
 }
 
 int secure_memcmp(const uint8_t* s1, const uint8_t* s2, int size);
+int cst_memeq(const uint8_t* x, const uint8_t* y, int size);
 
 
 #pragma vector = UART_RX_VECTOR
@@ -385,7 +386,7 @@ __attribute__((section(".do_mac.lib"))) void read_byte()
         hash((uint8_t *)hash_res, (uint8_t *)input_hash, (uint32_t)SIZE_HASH);
         memcpy(input_hash, hash_res, SIZE_HASH);
       }
-      if (secure_memcmp(hash_res, cur_hash, SIZE_HASH) != 0)
+      if (cst_memeq(hash_res, cur_hash, SIZE_HASH) != 0)
       {
         return;
       }
@@ -504,7 +505,7 @@ __attribute__ ((section (".do_mac.call"))) void Hacl_HMAC_SHA2_256_hmac_entry()
     hmac((uint8_t*) verification, (uint8_t*) key, (uint32_t) 64, (uint8_t*)MAC_ADDR, (uint32_t) 32);
 
     // Verifier Authentication before calling HMAC
-    if (secure_memcmp((uint8_t*) VRF_AUTH, verification, 32) == 0) 
+    if (cst_memeq((uint8_t*) VRF_AUTH, verification, 32) == 0) 
     {
       // Update the counter with the current authenticated challenge.
       memcpy((uint8_t*) CTR_ADDR, (uint8_t*) MAC_ADDR, 32);    
@@ -548,6 +549,18 @@ __attribute__ ((section (".do_mac.body"))) int secure_memcmp(const uint8_t* s1, 
     return res;
 }
 
+inline __attribute__((section (".do_mac.body")))
+int cst_memeq(const uint8_t* x, const uint8_t* y, int size)
+{
+    volatile unsigned int d = 0U;
+    unsigned int i;
+
+    for (i = 0; i < size; i++) {
+        d |= x[i] ^ y[i];
+    }
+
+    return (1 & ((d - 1) >> 8)) - 1;
+}
 
 __attribute__ ((section (".do_mac.leave"))) __attribute__((naked)) void Hacl_HMAC_SHA2_256_hmac_exit() 
 {
