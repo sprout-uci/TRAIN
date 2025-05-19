@@ -1,5 +1,5 @@
-# TRAIN: TOCTOU Resilient Attestation for IoT Networks
-
+# TOCTOU Resilient Attestation for IoT Networks
+This paper has been accepted and awarded runner up for Best Paper at SenSys 2025 - [Link](https://dl.acm.org/doi/10.1145/3715014.3722057)
 ### TRAIN Directory Structure
 
     TRAINCASU
